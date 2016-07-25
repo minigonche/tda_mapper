@@ -1,4 +1,4 @@
-# tda_mapper
+# TDA Mapper in K Dimensions
 This code is simply an extension of the mapper2D created by Paul Pearson, Daniel Muellner and Gurjeet Singh. This code allows the user to use
 k dimensions for the filter function in a fullty vectorized excecution (Minus the iteration over the intersected open sets).
 
