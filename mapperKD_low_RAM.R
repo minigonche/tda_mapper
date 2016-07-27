@@ -153,9 +153,14 @@ mapperKD <- function(
       # gonche: (A lot of optimization)
       
       if(low_ram)
-        level_distance_matrix = distance_function(data = data, indices = points_in_level_logical)
-      else
+      {
+        level_distance_matrix = as.dist(distance_function(data = data, indices = points_in_level_logical))
+      }else
+      {
         level_distance_matrix <- as.dist(as.matrix(distance_matrix)[points_in_level_logical,points_in_level_logical])
+      }  
+      
+
       level_max_distance <- max(level_distance_matrix)
       # use R's hclust (provided by stats or fastcluster)
       # in place of Matlab's linkage function.
