@@ -1,5 +1,6 @@
 #' This function is an extension of the function mapper2D developed by Paul Pearson, Daniel Muellner and Gurjeet Singh as part of the
-#' the package TDAmapper
+#' the package TDAmapper. This version is intended to run on machines with small memory, repeating certain calculations to avoid storing large
+#' sets.
 
 #' @author Felipe Gonzalez
 #' mapperkD function
@@ -11,6 +12,9 @@
 #' @param num_intervals a vector of k positive integers, the number of intervals to be projected on.
 #' @param percent_overlap a number between 0 and 100 specifying how much adjacent intervals should overlap (for all projections)
 #' @param num_bins_when_clustering a positive integer that controls whether points in the same level set end up in the same cluster. The higher the number the more cluster one will get
+#' @param low_ram a boolean indicating if the algorithm should be excecuted in a memory restricted enviorment
+#' @param distance_funtion a function that receives two parameters: \code{data} the data used to calculate the distance between elements, \code{logical_indices} a logical vector indicating wich elements should be taken into account on the distance computation 
+#' @param data a data frame (or any other type of structure, as long as the distance_function is aware) containing the information necessary to calculate the distance
 #'
 #' @return An object of class \code{TDAmapper} which is a list of items named: 
 #' \code{adjacency} (adjacency matrix for the edges), 
@@ -24,11 +28,14 @@
 #' @examples
 #' m3 <- mapperKD(
 #'        3,
-#'        dist(data.frame( x=cos(1:100)*sin(101:200), y=sin(1:100)*sin(101:200), z = cos(101:200) )),
+#'        NULL,
 #'        filter_values = list( cos(1:100)*sin(101:200), sin(1:100)*sin(101:200),  cos(101:200)),
 #'        num_intervals = c(5,5,5),
 #'        percent_overlap = 50,
-#'        num_bins_when_clustering = 10)
+#'        num_bins_when_clustering = 10
+#'        TRUE,
+#'        function(data, indices)
+#'        )
 #' \dontrun{
 #' library(igraph)
 #' g3 <- graph.adjacency(m3$adjacency, mode="undirected")
@@ -37,18 +44,23 @@
 #' @export
 #'
 mapperKD <- function(
-  k = 3,
-  distance_matrix = dist(data.frame( x=cos(1:100)*sin(101:200), y=sin(1:100)*sin(101:200), z = cos(101:200) )),#Sphere
-  filter_values = list( cos(1:100)*sin(101:200), sin(1:100)*sin(101:200),  cos(101:200)),
-  num_intervals = c(5,5,5),
+  k = 2,
+  distance_matrix = NULL,
+  filter_values = list( cos(1:100), sin(1:100)),
+  num_intervals = c(5,5),
   percent_overlap = 50,
-  num_bins_when_clustering = 10
+  num_bins_when_clustering = 10,
+  low_ram = TRUE,
+  distance_function = function(data,indices){return(dist(data[indices,]))},
+  data = data.frame( x = cos(1:100), y = sin(1:100)) #Circle
 ) {
   
-  #gonche: checks if the dimentions of the parameters correspond with k
+  #gonche: checks if the dimensions of the parameters correspond with k
   if(k != length(filter_values) || k != length(num_intervals))
-    stop("The dimention of the filter values or the number of intervals do not correpond with the value of k")
-  
+    stop("The dimension of the filter values or the number of intervals do not correpond with the value of k")
+  #gonche: checks if the low_ram parameter is correctly used
+  if(low_ram && (is.null(distance_function) || is.null(data)))
+    stop('If low_ram = TRUE both distance_function and data must not be NULL')
   
   # initialize variables
   vertex_index <- 0
@@ -140,7 +152,15 @@ mapperKD <- function(
       # This could probably use some optimization...
       # gonche: (A lot of optimization)
       
-      level_distance_matrix <- as.dist(as.matrix(distance_matrix)[points_in_level_logical,points_in_level_logical])
+      if(low_ram)
+      {
+        level_distance_matrix = as.dist(distance_function(data = data, indices = points_in_level_logical))
+      }else
+      {
+        level_distance_matrix <- as.dist(as.matrix(distance_matrix)[points_in_level_logical,points_in_level_logical])
+      }  
+      
+
       level_max_distance <- max(level_distance_matrix)
       # use R's hclust (provided by stats or fastcluster)
       # in place of Matlab's linkage function.
@@ -328,6 +348,12 @@ cluster_cutoff_at_first_empty_bin <- function(heights, diam, num_bins_when_clust
   
   bin_breaks <- seq(from=min(heights), to=diam, 
                     by=(diam - min(heights))/num_bins_when_clustering)
+  if(length(bin_breaks) == 0)
+  {
+    print('bin_breaks == 0')
+    cutoff <- Inf
+    return(cutoff)
+  }
   myhist <- hist(c(heights,diam), breaks=bin_breaks, plot=FALSE)
   z <- (myhist$counts == 0)
   if (sum(z) == 0) {

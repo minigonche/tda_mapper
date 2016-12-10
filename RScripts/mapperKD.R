@@ -1,8 +1,6 @@
 #' This function is an extension of the function mapper2D developed by Paul Pearson, Daniel Muellner and Gurjeet Singh as part of the
-#' the package TDAmapper. This version is intended to run on machines with small memory, repeating certain calculations to avoid storing large
-#' sets.
+#' the package TDAmapper
 
-#' @author Felipe Gonzalez
 #' mapperkD function
 #'
 #' This function uses a filter function f: X -> R^k on a data set X that has n rows (observations) and m columns (variables).
@@ -11,10 +9,7 @@
 #' @param filter_values a list of k length n vector of real numbers (the projections)
 #' @param num_intervals a vector of k positive integers, the number of intervals to be projected on.
 #' @param percent_overlap a number between 0 and 100 specifying how much adjacent intervals should overlap (for all projections)
-#' @param num_bins_when_clustering a positive integer that controls whether points in the same level set end up in the same cluster. The higher the number the more cluster one will get
-#' @param low_ram a boolean indicating if the algorithm should be excecuted in a memory restricted enviorment
-#' @param distance_funtion a function that receives two parameters: \code{data} the data used to calculate the distance between elements, \code{logical_indices} a logical vector indicating wich elements should be taken into account on the distance computation 
-#' @param data a data frame (or any other type of structure, as long as the distance_function is aware) containing the information necessary to calculate the distance
+#' @param num_bins_when_clustering a positive integer that controls whether points in the same level set end up in the same cluster
 #'
 #' @return An object of class \code{TDAmapper} which is a list of items named: 
 #' \code{adjacency} (adjacency matrix for the edges), 
@@ -28,14 +23,11 @@
 #' @examples
 #' m3 <- mapperKD(
 #'        3,
-#'        NULL,
+#'        dist(data.frame( x=cos(1:100)*sin(101:200), y=sin(1:100)*sin(101:200), z = cos(101:200) )),
 #'        filter_values = list( cos(1:100)*sin(101:200), sin(1:100)*sin(101:200),  cos(101:200)),
 #'        num_intervals = c(5,5,5),
 #'        percent_overlap = 50,
-#'        num_bins_when_clustering = 10
-#'        TRUE,
-#'        function(data, indices)
-#'        )
+#'        num_bins_when_clustering = 10)
 #' \dontrun{
 #' library(igraph)
 #' g3 <- graph.adjacency(m3$adjacency, mode="undirected")
@@ -44,23 +36,18 @@
 #' @export
 #'
 mapperKD <- function(
-  k = 2,
-  distance_matrix = NULL,
-  filter_values = list( cos(1:100), sin(1:100)),
-  num_intervals = c(5,5),
+  k = 3,
+  distance_matrix = dist(data.frame( x=cos(1:100)*sin(101:200), y=sin(1:100)*sin(101:200), z = cos(101:200) )),#Sphere
+  filter_values = list( cos(1:100)*sin(101:200), sin(1:100)*sin(101:200),  cos(101:200)),
+  num_intervals = c(5,5,5),
   percent_overlap = 50,
-  num_bins_when_clustering = 10,
-  low_ram = TRUE,
-  distance_function = function(data,indices){return(dist(data[indices,]))},
-  data = data.frame( x = cos(1:100), y = sin(1:100)) #Circle
+  num_bins_when_clustering = 10
 ) {
   
-  #gonche: checks if the dimensions of the parameters correspond with k
+  
+  #gonche: checks if the dimentions of the parameters correspond with k
   if(k != length(filter_values) || k != length(num_intervals))
-    stop("The dimension of the filter values or the number of intervals do not correpond with the value of k")
-  #gonche: checks if the low_ram parameter is correctly used
-  if(low_ram && (is.null(distance_function) || is.null(data)))
-    stop('If low_ram = TRUE both distance_function and data must not be NULL')
+    stop("The dimention of the filter values or the number of intervals do not correpond with the value of k")
   
   # initialize variables
   vertex_index <- 0
@@ -97,6 +84,23 @@ mapperKD <- function(
   
   num_levels <- prod(num_intervals)
   
+  # level_index_matrix <- matrix(1:num_levels, num_intervals[1], num_intervals[2])
+  #
+  # Given any sequential index i in 1:num_levels,
+  # you can get the ordered pair index (row_index,col_index) by
+  # row_index <- which(level_index_matrix == i, arr.ind=TRUE)[1]
+  # col_index <- which(level_index_matrix == i, arr.ind=TRUE)[2]
+  #
+  # Given any ordered pair index (row_index,col_index),
+  # you can get the sequential index i in 1:num_levels by
+  # i <- level_index_matrix[row_index,col_index]
+  
+  # Given any sequential index i in 1:num_levels,
+  # "row_index" = level_indices_1[i]
+  # "col_index" = level_indices_2[i]
+  #- level_indices_1 <- rep(1:num_intervals[1], num_intervals[2])
+  #- level_indices_2 <- rep(1:num_intervals[2], each=num_intervals[1])
+ 
   #gonche: The position of the current level is modeled by an array of coordinates that starts in zeros
   level_indices = rep(0,k)
   level = 1
@@ -120,6 +124,18 @@ mapperKD <- function(
     max_value_in_level <- mapply(function(min_value_in_level_, interval_length_) min_value_in_level_ + interval_length_,
                                  min_value_in_level,
                                  interval_length)
+                                 
+    #- min_value_in_level_1 <- filter_min_1 + (level_1 - 1) * step_size_1
+    #- min_value_in_level_2 <- filter_min_2 + (level_2 - 1) * step_size_2
+    #- max_value_in_level_1 <- min_value_in_level_1 + interval_length_1
+    #- max_value_in_level_2 <- min_value_in_level_2 + interval_length_2
+    
+
+    #- points_in_level_logical <-
+    #-  (min_value_in_level_1 <= filter_values[[1]]) &
+    #-  (min_value_in_level_2 <= filter_values[[2]]) &
+    #-  (filter_values[[1]] <= max_value_in_level_1) &
+    #-  (filter_values[[2]] <= max_value_in_level_2)
     
     # gonche: Vectorize points_in_logical
     # gonche: prod() is use to model the 'and' operator across a vector
@@ -150,17 +166,8 @@ mapperKD <- function(
       # use as.matrix() to put the distance matrix in square form,
       # and as.dist() to put it in vector form
       # This could probably use some optimization...
-      # gonche: (A lot of optimization)
       
-      if(low_ram)
-      {
-        level_distance_matrix = as.dist(distance_function(data = data, indices = points_in_level_logical))
-      }else
-      {
-        level_distance_matrix <- as.dist(as.matrix(distance_matrix)[points_in_level_logical,points_in_level_logical])
-      }  
-      
-
+      level_distance_matrix <- as.dist(as.matrix(distance_matrix)[points_in_level_logical,points_in_level_logical])
       level_max_distance <- max(level_distance_matrix)
       # use R's hclust (provided by stats or fastcluster)
       # in place of Matlab's linkage function.
@@ -172,6 +179,11 @@ mapperKD <- function(
       cluster_indices_within_level <- as.vector( cutree(level_hcluster_ouput, h=cutoff) )
       num_vertices_in_level <- max( cluster_indices_within_level )
       
+      # points_in_level[[level]] and cluster_indices_within_level have the same length.
+      # heights has length 1 less than points_in_level[[level]] and cluster_indices_within_level
+      # print(heights)
+      # print(points_in_level[[level]])
+      # print(cluster_indices_within_level)
     }
     
     vertices_in_level[[level]] <- vertex_index + (1:num_vertices_in_level)
@@ -249,7 +261,51 @@ mapperKD <- function(
     
   }# End of adjacency construction
   
-
+#   for (i in 1:num_intervals[1]) {
+#     for (j in 2:num_intervals[2]) {
+#       
+#       # For adjacent level sets L_{i,j} and L_{i,j-1}, get the sequential index values k1 and k2
+#       k1 <- which( (level_indices_1 == i) & (level_indices_2 == j) )
+#       k2 <- which( (level_indices_1 == i) & (level_indices_2 == j-1))
+#       
+#       # check that both level sets are nonemtpy
+#       if ( (length(vertices_in_level[[k1]]) > 0) & (length(vertices_in_level[[k2]]) > 0) ) {
+#         
+#         for (v1 in vertices_in_level[[k1]]) {
+#           for (v2 in vertices_in_level[[k2]]) {
+#             # return 1 if the intersection is nonempty
+#             adja[v1,v2] <- ( length(intersect(points_in_vertex[[v1]],
+#                                               points_in_vertex[[v2]])) > 0 )
+#             adja[v2,v1] <- adja[v1,v2]
+#           }
+#         }
+#         
+#       }
+#     } # end part 1 of constructing adjacency matrix
+#   }
+#   for (j in 1:num_intervals[2]) {
+#     for (i in 2:num_intervals[1]) {
+#       
+#       # For adjacent level sets L_{i,j} and L_{i-1,j}, get the sequential index values k1 and k2
+#       k1 <- which( (level_indices_1 == i) & (level_indices_2 == j) )
+#       k2 <- which( (level_indices_1 == i-1) & (level_indices_2 == j))
+#       
+#       # check that both level sets are nonemtpy
+#       if ( (length(vertices_in_level[[k1]]) > 0) & (length(vertices_in_level[[k2]]) > 0) ) {
+#         
+#         for (v1 in vertices_in_level[[k1]]) {
+#           for (v2 in vertices_in_level[[k2]]) {
+#             # return 1 if the intersection is nonempty
+#             adja[v1,v2] <- ( length(intersect(points_in_vertex[[v1]],
+#                                               points_in_vertex[[v2]])) > 0 )
+#             adja[v2,v1] <- adja[v1,v2]
+#           }
+#         }
+#         
+#       }
+#     } # end part 2 of constructing adjacency matrix
+#   }
+  
   mapperoutput <- list(adjacency = adja,
                        num_vertices = vertex_index,
                        level_of_vertex = level_of_vertex,
