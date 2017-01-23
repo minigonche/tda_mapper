@@ -3,14 +3,14 @@
 library('RMySQL')
 #library('proxy')
 library('pracma')
-setwd("~/Dropbox/Alejandro_Feged-Felipe_Gonzalez/interactive_results/RScripts")
+setwd("~/Dropbox/Andres_Angel-Felipe_Fongalez/TDA Enfermedades Colombia/interactive_sivigila_results/RScripts")
 source('mapperKD_low_RAM.R')
 source('weighted_binary_dist.R')
 
 # ----------------------------------------------
 # -------------- GENERIC PARAMETERS ------------
 # ----------------------------------------------
-# The Path
+# The Path where the data will be stored
 path = '../'
 
 
@@ -20,38 +20,56 @@ path = '../'
 # -------------- CUSTOM PARAMETERS ------------
 # ---------------------------------------------
 # -- LOW RAM CONFIGURATION
-low_ram = FALSE;
+low_ram = TRUE
+
+# --  Prints notification each time an iteration is completed
+print_iterations = TRUE
 
 
 # -- DATA
 # Folder/Data name. Corresponds to the data that is going to be used for the analysis
-folder_data_name = 'plebiscito_survey'
+folder_data_name = 'malaria_disease_zone_3'
 # --- In Case the data set is new
-data_description = "A rigurous social and opinion survey centered around the peace vote" # The description of the data set
+data_description = "Social economic data of diferent resport of infectous diseases around Colombia corresponding to outskirts populations" # The description of the data set
 
+#This parameter indicates from where the records will be loaded.
+data_base_source = NULL
 
 #If the source file comes from a csv file
-csv = TRUE
-csv_location = "~/Dropbox/Alejandro_Feged-Felipe_Gonzalez/Plebiscito/Encuesta_final.csv"
+data_base_source = 'CSV'
+csv_location = "~/Dropbox/Andres_Angel-Felipe_Fongalez/TDA Enfermedades Colombia/sivigila_datos_extraidos/datos_merged_complete/malaria_complete.csv"
 
 #if the data comes from an sql database
-SQL = FALSE
+#data_base_source = 'SQL'
 SQL_statement  = 
-  'SELECT  num_ocu, sexo, edad_prom, edad_min, edad_max, depto, munic, zona, tamano, puntavi, ingresos FROM MALARIA_CONTROL
-ORDER BY RAND()
-LIMIT 5000;' #SQL Statement
+  '' #SQL Statement
+
+#If the data comes from an Rdata
+#data_base_source = 'RDATA'
+rdata_file_location = '~/Dropbox/Andres_Angel-Felipe_Fongalez/TDA Enfermedades Colombia/sivigila_datos_extraidos/datos_merged_complete/malaria_db.RData'
+
+#Data customization function
+#This is a function that receives the data so that manipulates the record as the user wishes
+
+data_process_function = function(data)
+{
+  return(data[which(data$Area == '3 - AREA RURAL DISPERSA'),])
+}
+
+
 
 
 # -- DISTANCE
 # Folder/Distance name. Corresponds to the distance that is going to be used for the analysis
-folder_distance_name = 'social_info'
+folder_distance_name = 'job_area'
 # --- In case the distance has not been computed
 distance_description = 'The distance for this experiment corresponds to the weighted binary distance, with the following weights:
-Religion (religion) = 0.2
-Ocupation (ocupacion) = 0.2
-Social Rank (estrato) = 0.2
-Education (educacion) = 0.2
-Gender (genero) = 0.2
+Edad (Edad) = 0.2
+Sexo (Sexo) = 0.2
+Etnia (etnia) = 0.2
+Area (Area) = 0
+Tipo de Trabajo  (Grupo) = 1
+
 
 The distance matrix is calculated summing manhattan distance matrices' # The distance description
 
@@ -59,26 +77,26 @@ The distance matrix is calculated summing manhattan distance matrices' # The dis
 distance_function = function(record)
 {
   weights =   list(
-    'religion' = 0.2,
-    'ocupacion' = 0.2,
-    'estrato' = 0.2,
-    'educacion' = 0.2,
-    'genero' = 0.2)
+    'Edad' = 0.2,
+    'Sexo' = 0.2,
+    'Etnia' = 0.2,
+    'Area' = 0,
+    'Grupo' = 1)
   
   col_names = list(
-    'religion',
-    'ocupacion',
-    'estrato',
-    'educacion',
-    'genero')
+    'Edad',
+    'Sexo',
+    'Etnia',
+    'Area',
+    'Grupo')
   
   # 1 is Nominal, 2 is Numeric        
   data_type =   list(
-    'religion' = 1,
-    'ocupacion' = 1,
-    'estrato' = 1,
-    'educacion' = 1,
-    'genero' = 1)
+    'Edad' = 2,
+    'Sexo' = 1,
+    'Etnia' = 1,
+    'Area' = 1,
+    'Grupo' = 1)
   
   distance = dist(rep(0,length(record[[col_names[[1]]]])), method = 'manhattan')
   
@@ -94,10 +112,8 @@ distance_function = function(record)
         #If there is only one, no distance is requiered
         if(length(u_nominal) > 1)
         {
-          
           coor_nominal = sapply(record[[col]], function(x) as.numeric(u_nominal == x))
           distance = distance + (weights[[col]]/2)*dist(t(coor_nominal), method = 'manhattan') 
-          
         }
       }
       else if(data_type[[col]] == 2) 
@@ -128,25 +144,23 @@ distance_function_low_ram = function(data,indices){
 
 # -- FILTER FUNCTION
 # the name of the filter/folder of the results
-filter_results_name = 'media_influence'
+filter_results_name = 'week_reported'
 # The filter function description to be displayed
-filter_description = "The filter used will be the citizen's media inetraction"
+filter_description = "The filter used will be the case Week of the year"
 # The filter function that recieves the data (in a dataFrame object) and outputs the filter values to work with.
 filter_function = function(x)
 {
-  
-  
-  return(list(x$tiempo_prensa,x$tiempo_tv, x$tiempo_internet))
+  return(list(x$Semana.Epidemiologica))
 }
 
 # -- TDAMapper Configuration
 
 # Number of dimensions
-k = 3
+k = 1
 # Number of Intervals
-num_intervals = c(3,3,3)
+num_intervals = c(10)
 # percentage of overlap
-percent_overlap = 60
+percent_overlap = 40
 # number of bins when clustering
 num_bins_when_clustering = 6
 
@@ -169,12 +183,14 @@ if(file.exists(paste(path,folder_data_name,'/RData/data.RData', sep = ''))) # If
   # Loads the data
   load(paste(path,folder_data_name,'/RData/data.RData', sep = ''))
   
+  
 } else
   # The file does not exist 
 {
   if(is.null(data_description) 
-     || (SQL && is.null(SQL_statement))
-     || (csv && is.null(csv_location)))
+     || (data_base_source == 'SQL' && is.null(SQL_statement))
+     || (data_base_source == 'CVS' && is.null(csv_location))
+     || (data_base_source == 'RDATA' && is.null(rdata_file_location)))
     stop('If the data is new (data.RData saved) a description and SQL statment must be provided or a .csv location must be given')
   
   # Creates the directory and loads the data
@@ -182,7 +198,7 @@ if(file.exists(paste(path,folder_data_name,'/RData/data.RData', sep = ''))) # If
   dir.create(paste(path,folder_data_name,'/RData', sep = ''), showWarnings = FALSE)
   working_data = list(desc = data_description, data = NULL )
   
-  if(SQL)
+  if(data_base_source == 'SQL')
   {
     # The MySQL data base contection
     db_con = dbConnect(MySQL(), user="minigonche", password="luispolanco", dbname="col_data", host="col-data.coxl8wirabtc.us-west-1.rds.amazonaws.com")
@@ -192,10 +208,19 @@ if(file.exists(paste(path,folder_data_name,'/RData/data.RData', sep = ''))) # If
     #disconnects from db
     dbDisconnect(db_con)
     
-  } else if(csv)
+  } else if(data_base_source == 'CSV')
   {
     working_data$data = read.csv(csv_location)
+  
+  }else if(data_base_source == 'RDATA')
+  {
+    working_data$data = load(rdata_file_location)
   }
+  
+  if(!is.null(data_process_function))
+  {
+    working_data$data = data_process_function(working_data$data)
+  }  
   
   # Saves the file
   save(working_data, file = paste(path,folder_data_name,'/RData/data.RData', sep = ''))
@@ -300,7 +325,8 @@ if(low_ram)
                         num_bins_when_clustering = num_bins_when_clustering,
                         low_ram = TRUE,
                         distance_function = distance_function_low_ram,
-                        data = working_data$data)
+                        data = working_data$data,
+                        print_iterations = print_iterations)
   
 }else
 {
@@ -312,7 +338,8 @@ if(low_ram)
                         num_bins_when_clustering = num_bins_when_clustering,
                         low_ram = FALSE,
                         distance_function = NULL,
-                        data = NULL)
+                        data = NULL,
+                        print_iterations = print_iterations)
 }
 
 
@@ -356,13 +383,6 @@ rm(comments,
 
 
 print('---- 7. ALL DONE!!')
-
-
-
-
-
-
-
 
 
 
