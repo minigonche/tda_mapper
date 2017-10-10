@@ -52,7 +52,8 @@ mapperKD <- function(
   num_bins_when_clustering = 10,
   low_ram = TRUE,
   distance_function = function(data,indices){return(dist(data[indices,]))},
-  data = data.frame( x = cos(1:100), y = sin(1:100)) #Circle
+  data = data.frame( x = cos(1:100), y = sin(1:100)),
+  print_iterations = FALSE #Circle
 ) {
   
   #gonche: checks if the dimensions of the parameters correspond with k
@@ -79,8 +80,17 @@ mapperKD <- function(
   # gonche: minimum of the filter values
   filter_min <- lapply(filter_values, min)
   
+  
   # gonche: maximum of the filter values
   filter_max <- lapply(filter_values, max)
+  
+  
+  filter_min_1 <- sapply(filter_values, min)
+  
+  
+  # gonche: maximum of the filter values
+  filter_max_1 <- sapply(filter_values, max)
+  
   
   # gonche: Vectorize the interval length
   interval_length <- mapply(function(min_, max_, num_, per_) (max_ - min_) / (num_ - (num_ - 1) * per_/100 ),
@@ -89,11 +99,14 @@ mapperKD <- function(
                             num_intervals, 
                             MoreArgs=list(per_=percent_overlap))
 
+  interval_length_1 = (filter_max_1 - filter_min_1)/(num_intervals - (num_intervals - 1)*percent_overlap/100)
+
   # gonche: Vectorize step_size
   step_size <- mapply(function(interval_, per_) interval_ * (1 - per_/100),
                       interval_length, 
                       MoreArgs=list(per_=percent_overlap))
   
+  step_size_1 = interval_length_1 * (1 - percent_overlap/100)
   
   num_levels <- prod(num_intervals)
   
@@ -101,8 +114,8 @@ mapperKD <- function(
   level_indices = rep(0,k)
   level = 1
   
-  #gonche: Invert the given filter_values to avoid using loops
-  inver_filter_values = invert(filter_values)
+  #Convert filter values to matrix
+  m_filter_values = matrix(unlist(filter_function[[2]]), ncol = k)
    
   # begin mapper main loop
   #- for (level in 1:num_levels) 
@@ -112,24 +125,21 @@ mapperKD <- function(
     #- level_2 <- level_indices_2[level]
     
     # gonche: Vectorize min_value_in_level
-    min_value_in_level <- mapply(function(filter_min_, level_indices_, step_size_) filter_min_ + (level_indices_ * step_size_),
-                                 filter_min,
-                                 level_indices,
-                                 step_size)
+    min_value_in_level_1 = filter_min_1 + (level_indices * step_size_1)
     # gonche: Vectorize maxvalue_in_level     
-    max_value_in_level <- mapply(function(min_value_in_level_, interval_length_) min_value_in_level_ + interval_length_,
-                                 min_value_in_level,
-                                 interval_length)
+    max_value_in_level_1 = min_value_in_level_1 + interval_length_1
+
+        
     
     # gonche: Vectorize points_in_logical
-    # gonche: prod() is use to model the 'and' operator across a vector
-    points_in_level_logical = as.logical(mapply(function(inver_filter_values_, min_value_in_level_,max_value_in_level_) prod(inver_filter_values_ <= max_value_in_level_ & inver_filter_values_ >= min_value_in_level_),
-                               inver_filter_values, 
-                               MoreArgs=list(min_value_in_level_ = min_value_in_level, max_value_in_level_ = max_value_in_level )))
+    temp_logic_matrix = m_filter_values >= min_value_in_level_1 & m_filter_values <= max_value_in_level_1
+    points_in_level_logical = as.logical(apply(temp_logic_matrix, 1, prod))
+    
       
     num_points_in_level <- sum(points_in_level_logical)
-    points_in_level[[level]] <- which(points_in_level_logical==TRUE)
+    points_in_level[[level]] <- which(points_in_level_logical)
     
+
     if (num_points_in_level == 0) {
       print('Level set is empty')
       
@@ -155,6 +165,7 @@ mapperKD <- function(
       if(low_ram)
       {
         level_distance_matrix = as.dist(distance_function(data = data, indices = points_in_level_logical))
+        
       }else
       {
         level_distance_matrix <- as.dist(as.matrix(distance_matrix)[points_in_level_logical,points_in_level_logical])
@@ -164,6 +175,8 @@ mapperKD <- function(
       level_max_distance <- max(level_distance_matrix)
       # use R's hclust (provided by stats or fastcluster)
       # in place of Matlab's linkage function.
+      
+      
       level_hcluster_ouput <- hclust(level_distance_matrix,method="single")
       heights <- level_hcluster_ouput$height
       cutoff <- cluster_cutoff_at_first_empty_bin(heights, level_max_distance, num_bins_when_clustering)
@@ -171,6 +184,11 @@ mapperKD <- function(
       # use as.vector() to get rid fo the names for the vector entries
       cluster_indices_within_level <- as.vector( cutree(level_hcluster_ouput, h=cutoff) )
       num_vertices_in_level <- max( cluster_indices_within_level )
+      
+      rm(level_distance_matrix)
+      rm(level_hcluster_ouput)
+      rm(cutoff)
+      gc = gc(reset = TRUE)
       
     }
     
@@ -195,6 +213,9 @@ mapperKD <- function(
     
     # gonche: Advance level
     level = level+1
+    
+    if(print_iterations)
+    {print(paste('Finished',level,'Iterations'))}
     
   } # end mapper main loop
   
