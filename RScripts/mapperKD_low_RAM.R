@@ -78,35 +78,18 @@ mapperKD <- function(
   
   # gonche: Vectorize the min and max values of the filter_values
   # gonche: minimum of the filter values
-  filter_min <- lapply(filter_values, min)
+  filter_min <- sapply(filter_values, min)
   
   
   # gonche: maximum of the filter values
-  filter_max <- lapply(filter_values, max)
-  
-  
-  filter_min_1 <- sapply(filter_values, min)
-  
-  
-  # gonche: maximum of the filter values
-  filter_max_1 <- sapply(filter_values, max)
+  filter_max <- sapply(filter_values, max)
   
   
   # gonche: Vectorize the interval length
-  interval_length <- mapply(function(min_, max_, num_, per_) (max_ - min_) / (num_ - (num_ - 1) * per_/100 ),
-                            filter_min, 
-                            filter_max, 
-                            num_intervals, 
-                            MoreArgs=list(per_=percent_overlap))
-
-  interval_length_1 = (filter_max_1 - filter_min_1)/(num_intervals - (num_intervals - 1)*percent_overlap/100)
+  interval_length = (filter_max - filter_min)/(num_intervals - (num_intervals - 1)*percent_overlap/100)
 
   # gonche: Vectorize step_size
-  step_size <- mapply(function(interval_, per_) interval_ * (1 - per_/100),
-                      interval_length, 
-                      MoreArgs=list(per_=percent_overlap))
-  
-  step_size_1 = interval_length_1 * (1 - percent_overlap/100)
+  step_size = interval_length * (1 - percent_overlap/100)
   
   num_levels <- prod(num_intervals)
   
@@ -116,24 +99,34 @@ mapperKD <- function(
   
   #Convert filter values to matrix
   m_filter_values = matrix(unlist(filter_function[[2]]), ncol = k)
-   
+  
+
   # begin mapper main loop
   #- for (level in 1:num_levels) 
    repeat {
      
+ 
     #- level_1 <- level_indices_1[level]
     #- level_2 <- level_indices_2[level]
     
     # gonche: Vectorize min_value_in_level
-    min_value_in_level_1 = filter_min_1 + (level_indices * step_size_1)
+    min_value_in_level = filter_min + (level_indices * step_size)
     # gonche: Vectorize maxvalue_in_level     
-    max_value_in_level_1 = min_value_in_level_1 + interval_length_1
+    max_value_in_level = min_value_in_level + interval_length
 
-        
+    #gonche: converts into matrix
+    min_value_in_level_matrix = matrix(rep(min_value_in_level, nrow(m_filter_values)), ncol = 2, byrow = TRUE)
+    max_value_in_level_matrix = matrix(rep(max_value_in_level, nrow(m_filter_values)), ncol = 2, byrow = TRUE)
+    
     
     # gonche: Vectorize points_in_logical
-    temp_logic_matrix = m_filter_values >= min_value_in_level_1 & m_filter_values <= max_value_in_level_1
+    temp_logic_matrix_1 = m_filter_values >= min_value_in_level_matrix 
+    temp_logic_matrix_2 = m_filter_values <= max_value_in_level_matrix
+    
+    
+    temp_logic_matrix = temp_logic_matrix_1 & temp_logic_matrix_2
     points_in_level_logical = as.logical(apply(temp_logic_matrix, 1, prod))
+    
     
       
     num_points_in_level <- sum(points_in_level_logical)
@@ -142,6 +135,8 @@ mapperKD <- function(
 
     if (num_points_in_level == 0) {
       print('Level set is empty')
+      
+      
       
       if(!advance(level_indices,num_intervals))
       {break}
@@ -208,6 +203,8 @@ mapperKD <- function(
       
     }
     
+
+    
     if(!advance(level_indices,num_intervals))
     {break}
     
@@ -217,10 +214,14 @@ mapperKD <- function(
     if(print_iterations)
     {print(paste('Finished',level,'Iterations'))}
     
+
+    
   } # end mapper main loop
   
-  #gonche: If the last levels are empty, the adjacency matrix construction fails because of an out of bonds error
-  vertices_in_level[[num_levels+1]] <- -1
+  #gonche: vertices in level will not have the same size as number of levels.
+  # Adds the missing values
+  vertices_in_level[[num_levels+1]] = -1
+  
   
   # Note: num_vertices = vertex index.
   # Create the adjacency matrix for the graph, starting with a matrix of zeros
@@ -231,6 +232,7 @@ mapperKD <- function(
   level_indices = rep(0,k)
   level = 1
   
+ 
   
   repeat {
     
@@ -269,6 +271,31 @@ mapperKD <- function(
     level = level+1
     
   }# End of adjacency construction
+
+  #brute force adjacency construction
+  adja <- mat.or.vec( vertex_index, vertex_index )
+  
+  
+  for(k1 in 1:(num_levels - 1))
+  {
+    for(k2 in (k1+1):num_levels)
+    {
+      
+      # check that both level sets are nonemtpy
+      if ( !is.null(vertices_in_level[[k1]]) & !is.null(vertices_in_level[[k2]]) )  {
+        
+        for (v1 in vertices_in_level[[k1]]) {
+          for (v2 in vertices_in_level[[k2]]) {
+            # return 1 if the intersection is nonempty
+            adja[v1,v2] <- ( length(intersect(points_in_vertex[[v1]],
+                                              points_in_vertex[[v2]])) > 0 )
+            adja[v2,v1] <- adja[v1,v2]
+          }
+        }
+        
+      }
+    }
+  }#end of brute force
   
 
   mapperoutput <- list(adjacency = adja,
@@ -322,6 +349,8 @@ advance <- function(position,num_intervals)
   
 } # end advance function
 
+
+get_coordinates = 
 
 # gonche: Support function for inverting the list. For some calculations it's better to invert a list of m n-dimentional arrays, to a list of n m-dimentional arrays
 #' @param lis a list of m n-dimentional arrays

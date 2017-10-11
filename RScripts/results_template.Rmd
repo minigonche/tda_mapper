@@ -78,6 +78,10 @@ size_array = sapply(tda$result$points_in_vertex,length)
 min_size = min(size_array)
 max_size = max(size_array)
 
+conectivity = apply(tda$result$adjacency, 1 , sum)
+min_connectivity = min(conectivity)
+max_connectivity = max(conectivity)
+
 
 # The color scheme options
 label_display_scheme_options = c('None','Node ids','Node Sizes', 'Color Scheme Value')
@@ -108,6 +112,11 @@ ui4 <- shinyUI(navbarPage("Results",
             hr(),
                 fluidRow(column(12,h4('Select Ids to Display')), fluidRow(column(5,checkboxInput("filter_nodes", label = "Display only the following nodes:", value = FALSE)),
                               column(7,textInput("filter_nodes_ids", "Node Ids", value = NULL)))),
+                fluidRow(column(12,h4('Isolated Nodes')), fluidRow(column(5,checkboxInput("filter_nodes_connectivity", label = "Remove nodes by size and connectivity:", value = FALSE)),
+                              column(7,sliderInput("range_connectivity_size", label = h4("Remove with Size:"), min = min_size , 
+                  max = round(max_size*1.1), value = c(min_size, min_size + 1), step = 1, width = '100%'),
+                  sliderInput("range_connectivity", label = h4("And Connectivity:"), min = min_connectivity , 
+                  max = round(max_connectivity*1.1), value = c(min_connectivity, min_connectivity +1), step = 1, width = '100%')))),
             fluidRow(
               column(2,
                      h4('Topology'),
@@ -238,7 +247,7 @@ server4 <- function(input, output, session) {
     
         df = working_data$data;
         tda = tda$result;
-        only_node_ids = NULL
+        only_node_ids = NULL;
         min_draw_size = input$min_draw_size;
         max_draw_size = input$max_draw_size;
         color_scheme = 'NONE';
@@ -261,6 +270,22 @@ server4 <- function(input, output, session) {
           only_node_ids = sapply(strsplit(x = input$filter_nodes_ids, split = c(',',';')), as.numeric)
           only_node_ids = unique(only_node_ids)
           only_node_ids = sort(only_node_ids)
+        }
+        
+        if(input$filter_nodes_connectivity)
+        {
+          if(is.null(only_node_ids))
+          {
+            only_node_ids = 1:tda$result$num_vertices
+          }
+          
+          to_remove = intersect(which(conectivity >= input$range_connectivity[1]), which(conectivity <= input$range_connectivity[2]))
+          to_remove = intersect(to_remove, which(size_array >= input$range_connectivity_size[1]), which(size_array <= input$range_connectivity_size[2]))
+          
+          only_node_ids = setdiff(only_node_ids, to_remove)
+          
+          
+          
         }
     
         
@@ -321,6 +346,8 @@ server4 <- function(input, output, session) {
         }
     
       })
+      
+      
       
       output$topo_plot <- renderPlot({
         plot(graph())
@@ -462,7 +489,7 @@ server4 <- function(input, output, session) {
 
 
 
-shinyApp(ui4, server4, options = list(height = 1430))
+shinyApp(ui4, server4, options = list(height = 1700))
 
 
 ```
