@@ -143,7 +143,11 @@ create_graph <- function(df,
     {
       min_color_number = min(color_numbers)
       max_color_number = max(color_numbers)
-      if(max_color_number == 0)
+      if(min_color_number == max_color_number)
+      {
+        color_percentages = rep(100, tda$num_vertices)
+      }
+      else if(max_color_number == 0)
       {
         color_percentages = rep(0, tda$num_vertices)
       }
