@@ -335,7 +335,8 @@ mapperKD <- function(
       }
     }
     
-    print(paste('Finished Adjacency for level: ', k1 , ' of ', length(adjacent_levels), sep = ''))
+    if(print_iterations)
+    {print(paste('Finished Adjacency for level: ', k1 , ' of ', length(adjacent_levels), sep = ''))}
     
   }#end of brute force
   
