@@ -12,3 +12,4 @@ allows the script to run in small (AWS t2.micro) machines.
 The files *result_constructor.R* and *TDAInteractiveResults.R* enable the user
 to quickly construct results and visualize them.
 
+The constructed script was tested against the methods mapper1D and mapper2D for random samples. They produce exact results. The test script corresponds to: *test.R*
