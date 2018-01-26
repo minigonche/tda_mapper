@@ -9,7 +9,8 @@ library('TDAmapper')
 #Loads the custom mapper library
 source('mapperKD_low_RAM.R')
 
-
+#Loads the igraph library for ploting
+library('igraph')
 
 
 
@@ -29,46 +30,25 @@ compare_mapper_results = function(mapper_result_1, mapper_result_2)
 }
 
 
-#The circle
-num_intervals = 5
-percent_overlap = 50
-num_bins_when_clustering = 10
-
-
-circle = data.frame(x = 2 * cos(0.5 * (1:100)), y = sin(1:100))
-
-mapper_result_1 = mapper1D(distance_matrix = dist(circle), 
-                      filter_values = circle$x, 
-                      num_intervals = num_intervals, 
-                      percent_overlap = percent_overlap, 
-                      num_bins_when_clustering = num_bins_when_clustering)
-
-mapper_result_2 = mapperKD(k = 1,
-                      distance_matrix = dist(circle),
-                      filter_values = list( circle$x),
-                      num_intervals = num_intervals, 
-                      percent_overlap = percent_overlap, 
-                      num_bins_when_clustering = num_bins_when_clustering,
-                      low_ram = FALSE,
-                      distance_function = function(data,indices){return(dist(data[indices,]))},
-                      data = circle,
-                      print_iterations = FALSE)
-
+num_of_iterations = 50
 
 #Creates several random samples and test if the two mappers are the same 
 
 #Dimension 1
 
 result = c()
-for(i in 1:50)
+for(i in 1:num_of_iterations)
 {
+  tryCatch({
+    
   size = 100
   sample_data = data.frame( x = c(rnorm(size, mean = sample(-100:100,1), sd = abs(runif(1, 0, sample(1:20,1))))),
                             y = c(rnorm(size, mean = sample(-100:100,1), sd = abs(runif(1, 0, sample(1:20,1))))))
   
   distance_matrix = dist(sample_data)
   
-  filter_function = rnorm(size, mean = sample(-100:100,1), sd = abs(runif(1, 0, sample(1:20,1))))
+  split = sample(c(1,2,4,5),1)
+  filter_function = rep(rnorm(size/split, mean = sample(-100:100,1), sd = abs(runif(1, 0, sample(1:20,1)))),split)
   
   num_intervals = sample(2:20,1)
   percent_overlap = sample(2:98,1)
@@ -80,6 +60,7 @@ for(i in 1:50)
                              percent_overlap = percent_overlap, 
                              num_bins_when_clustering = num_bins_when_clustering)
   
+  plot(graph.adjacency(mapper_result_1$adjacency, mode = 'undirected'))
   
   mapper_result_2 = mapperKD(k = 1,
                              distance_matrix = distance_matrix,
@@ -92,18 +73,35 @@ for(i in 1:50)
                              data = circle,
                              print_iterations = FALSE)
   
+  mapper_result_3 = mapperKD(k = 1,
+                             distance_matrix = distance_matrix,
+                             filter_values = list( filter_function),
+                             num_intervals = num_intervals, 
+                             percent_overlap = percent_overlap, 
+                             num_bins_when_clustering = num_bins_when_clustering,
+                             low_ram = TRUE,
+                             distance_function = function(data,indices){return(dist(data[indices,]))},
+                             data = sample_data,
+                             print_iterations = FALSE)
   
   
-  result = c(result,compare_mapper_results(mapper_result_1, mapper_result_2))
+  
+  result = c(result,compare_mapper_results(mapper_result_1, mapper_result_2), compare_mapper_results(mapper_result_1, mapper_result_3))
 
-  print(paste('finished',i))
+  }, warning = function(w) {
+    
+  }, error = function(e) {
+    print('error')
+  }, finally = {
+    print(paste('finished',i))
+  })
 }
 
 
 #Dimension 2
 
 result2 = c()
-for(i in 1:50)
+for(i in 1:num_of_iterations)
 {
   tryCatch({
     size = 100
@@ -112,8 +110,11 @@ for(i in 1:50)
     
     distance_matrix = dist(sample_data)
     
-    filter_function = list(rnorm(size, mean = sample(-100:100,1), sd = abs(runif(1, 0, sample(1:20,1)))),
-                           rnorm(size, mean = sample(-100:100,1), sd = abs(runif(1, 0, sample(1:20,1)))))
+    split = sample(c(1,2,4,5),1)
+    
+    
+    filter_function = list(rep(rnorm(size/split, mean = sample(-100:100,1), sd = abs(runif(1, 0, sample(1:20,1)))),split),
+                           rep(rnorm(size/split, mean = sample(-100:100,1), sd = abs(runif(1, 0, sample(1:20,1)))),split))
     
     
     temp = c(sample(2:5,1))
@@ -127,7 +128,7 @@ for(i in 1:50)
                                percent_overlap = percent_overlap, 
                                num_bins_when_clustering = num_bins_when_clustering)
     
-    #plot(graph.adjacency(mapper_result_1$adjacency, mode = 'undirected'))
+    plot(graph.adjacency(mapper_result_1$adjacency, mode = 'undirected'))
     
     
     mapper_result_2 = mapperKD(k = 2,
@@ -138,7 +139,7 @@ for(i in 1:50)
                                num_bins_when_clustering = num_bins_when_clustering,
                                low_ram = FALSE,
                                distance_function = function(data,indices){return(dist(data[indices,]))},
-                               data = circle,
+                               data = sample_data,
                                print_iterations = FALSE)
     
     
@@ -155,6 +156,13 @@ for(i in 1:50)
   
 }
 
-print(all(result1 == TRUE))
-print(all(result2 == TRUE))
+
+print('-------------------------------------------------------------')
+print('-------------------------------------------------------------')
+print('-------------------------------------------------------------')
+print('FINISHED TEST')
+print('-------------------------------------------------------------')
+print('Results:')
+print(paste('Test for Dimension 1:', all(result == TRUE)))
+print(paste('Test for Dimension 2:', all(result2 == TRUE)))
 
