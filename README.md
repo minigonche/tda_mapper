@@ -5,9 +5,8 @@ k dimensions for the filter function in a fullty vectorized excecution (Minus th
 The idea is that this code replaces both the mapper1D and mapper2D, although I have not compared them in terms of efficiency. There is still 
 a section of the code that could use some optimization 
 
-The version that runs on low memory has been included. This versions minimizes the ammount of RAM needed, calculating only the 
-necessary subset of the distance matrix in each iterartion. This would mean calculating some distances over and over again, but it 
-allows the script to run in small (AWS t2.micro) machines.
+The version that runs on low memory has been included. This version minimizes the ammount of RAM needed, calculating only the 
+necessary subset of the distance matrix in each iterartion. This would mean calculating some distances over and over again, but it allows the script to run in small (AWS t2.micro) machines.
 
 The files *result_constructor.R* and *TDAInteractiveResults.R* enable the user
 to quickly construct results and visualize them.
